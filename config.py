@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings  # Импорт BaseSettings для создания настроек
 from dotenv import load_dotenv  # Импортир функции load_dotenv для загрузки переменных из .env
+from pathlib import Path
 
 # Загрузка переменных из файла .env в переменные окружения
 load_dotenv()
 
+BASE_DIR = Path(__file__).resolve().parent
 
 class Settings(BaseSettings):  # Наследуем от BaseSettings, чтобы автоматически читать переменные среды (в частности данные из .env)
     # Задаем настройки приложения
@@ -17,6 +19,9 @@ class Settings(BaseSettings):  # Наследуем от BaseSettings, чтоб�
     POSTGRES_PORT: int  # Порт для подключения, считывается автоматически из .env
     POSTGRES_DB: str  # Имя базы данных, считывается автоматически из .env
 
+    # Путь к словарю в формате JSON
+    DICTIONARY_PATH: str = str(BASE_DIR / "data" / "dictionary.json")
+
     # Свойство для создания синхронного URL подключения к PostgreSQL
     @property
     def POSTGRES_URLS(self) -> str:
@@ -26,6 +31,7 @@ class Settings(BaseSettings):  # Наследуем от BaseSettings, чтоб�
     @property
     def POSTGRES_URLA(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
 
 
 # Создаем экземпляр класса Settings, который автоматически считывает переменные из .env
