@@ -53,3 +53,14 @@ class GraphemeResponse(BaseModel):
 
 class ConfirmResponse(BaseModel):
     confirm: bool
+
+class TokenDetail(BaseModel):
+    token: str
+    pinyin: str
+    meanings: List[str]
+
+class TranslationRequest(BaseModel):
+    text: str
+
+class TranslationResponse(BaseModel):
+    tokens: List[TokenDetail]
