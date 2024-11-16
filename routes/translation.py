@@ -6,42 +6,29 @@ from dictionary import CHINESE_DICT
 
 translation_router = APIRouter(prefix="/translation", tags=["Перевод"])
 
+def get_token_detail(token: str) -> TokenDetail:
+    """
+    Возвращает подробную информацию о токене, если он найден в словаре.
+    Если токен не найден, возвращает объект с пустыми значениями.
+    """
+    pinyin, meanings = CHINESE_DICT.get(token, ("", []))
+    return TokenDetail(token=token, pinyin=pinyin, meanings=meanings)
+
 def translate_detailed(text: str) -> Union[TranslationResponse, TokenDetail]:
     """
-    Обработка китайского текста и возврат подробной информации о каждом токене
+    Обработка китайского текста и возврат подробной информации о каждом токене.
     """
     try:
-        # Если текст состоит из одного слова, возвращаем информацию только о нем
-        if text in CHINESE_DICT:
-            pinyin, meanings = CHINESE_DICT[text]
-            return TokenDetail(token=text, pinyin=pinyin, meanings=meanings)
+        # Пытаемся перевести текст как один токен
+        single_token_result  = get_token_detail(text)
 
-        # Разбиение текста на токены с помощью jieba
-        tokens = cut(text)
-        translated_tokens = []
+        # Если полученный результат не пустой, возвращаем его
+        if single_token_result.pinyin:
+            return single_token_result
 
-        # Обработка каждого токена
-        for token in tokens:
-            if token.strip():  # Пропуск пустых токенов
-                if token in CHINESE_DICT:
-                    # Если токен найден в словаре, получаем его пиньинь и значения
-                    pinyin, meanings = CHINESE_DICT[token]
-                    translated_tokens.append(
-                        TokenDetail(
-                            token=token,
-                            pinyin=pinyin,
-                            meanings=meanings
-                        )
-                    )
-                else:
-                    # Если токен не найден, добавляем его без перевода
-                    translated_tokens.append(
-                        TokenDetail(
-                            token=token,
-                            pinyin="",
-                            meanings=[]
-                        )
-                    )
+        # Разбиение текста на токены с помощью jieba и обработка каждого токена
+        tokens = (token.strip() for token in cut(text))
+        translated_tokens = [get_token_detail(token) for token in tokens if token]
 
         return TranslationResponse(tokens=translated_tokens)
 
