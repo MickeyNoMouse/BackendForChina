@@ -64,3 +64,6 @@ class TranslationRequest(BaseModel):
 
 class TranslationResponse(BaseModel):
     tokens: List[TokenDetail]
+
+class HieroglyphResponse(BaseModel):
+    hieroglyph: str

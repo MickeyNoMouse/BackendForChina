@@ -8,7 +8,6 @@ app = FastAPI()
 app.include_router(users_router)
 app.include_router(hieroglyphs_router)
 app.include_router(translation_router)
-app.include_router(translation_router)
 app.include_router(graphems_router)
 
 if __name__ == "__main__":
