@@ -1,9 +1,9 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, Boolean, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from pydantic import BaseModel, UUID4
-from typing import List
+from typing import List, Optional
 import uuid
 
 Base = declarative_base()
@@ -35,15 +35,37 @@ class Hieroglyph_Parts(Base):
 class Users(Base):
     __tablename__ = "users"
 
-    id_user = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    balance = Column(Integer, default=0)
+    id_user = Column(UUID(as_uuid=True), primary_key=True)
+    username = Column(String, nullable=False, unique=True, index=True)
+    balance = Column(Numeric(10, 2), default=0)
 
+    tokens = relationship("JwtTokens", back_populates="user", cascade="all, delete-orphan")
+
+class JwtTokens(Base):
+    __tablename__ = "jwt_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id_user"), nullable=False)
+    token = Column(String, nullable=False, unique=True, index=True)
+    expires_at = Column(TIMESTAMP, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    revoked = Column(Boolean, default=False)
+
+    user = relationship("Users", back_populates="tokens")
 class User(BaseModel):
     id_user: UUID4
     username: str
-    balance: int
+    balance: float
+
+class UserCreate(BaseModel):
+    username: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
 
 class GraphemeRequest(BaseModel):
     graphemes: List[str]
