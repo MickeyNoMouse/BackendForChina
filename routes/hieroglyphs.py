@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
-from models.models import Hieroglyphs, Hieroglyph_Parts, Parts_hieroglyphs, GraphemeRequest, GraphemeResponse, ConfirmResponse
+from sqlalchemy import func, select, and_
+from models.models import (Hieroglyphs, Hieroglyph_Parts, Parts_hieroglyphs,
+                           GraphemeRequest, GraphemeResponse, ConfirmResponse, HieroglyphResponse)
 from database import get_db
 from itertools import groupby
-
+from collections import Counter
 
 hieroglyphs_router = APIRouter(prefix="/hieroglyphs", tags=["Иероглифы"])
 
@@ -73,7 +74,7 @@ async def get_available_graphemes(request: GraphemeRequest, db: AsyncSession = D
     Возвращает доступные графемы на основе введенных пользователем.
     """
     if not request.graphemes:
-        raise HTTPException(status_code=400, detail="Список графем не может быть пустым")
+        raise HTTPException(status_code=400, detail="The grapheme list can't be empty")
 
     async with db as session:
         # Запрос для получения иероглифов, содержащих все введенные графемы
@@ -112,3 +113,63 @@ async def get_available_graphemes(request: GraphemeRequest, db: AsyncSession = D
 
         # Возвращаем список доступных графем, отсортированный
         return GraphemeResponse(available_graphemes=sorted(list(available_graphemes_set)))
+
+@hieroglyphs_router.post("/get_hieroglyph", response_model=HieroglyphResponse)
+async def get_hieroglyph(request: GraphemeRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Возвращает иероглиф, состоящий из заданных графем.
+    """
+    if not request.graphemes:
+        raise HTTPException(status_code=400, detail="The grapheme list can't be empty")
+
+    grapheme_counts = Counter(request.graphemes)
+
+    async with db as session:
+        # Создаем подзапросы для каждой графемы
+        subqueries = []
+        for grapheme, count in grapheme_counts.items():
+            subquery = (
+                select(Hieroglyph_Parts.id_hieroglyph)
+                .join(
+                    Parts_hieroglyphs,
+                    Hieroglyph_Parts.id_part_hieroglyph == Parts_hieroglyphs.id_part_hieroglyph
+                )
+                .filter(Parts_hieroglyphs.part == grapheme)
+                .group_by(Hieroglyph_Parts.id_hieroglyph)
+                .having(func.count() == count)
+            )
+            subqueries.append(Hieroglyphs.unicode.in_(subquery))
+
+        # Подзапрос для проверки общего количества частей иероглифа
+        total_parts_check = (
+            select(Hieroglyph_Parts.id_hieroglyph)
+            .group_by(Hieroglyph_Parts.id_hieroglyph)
+            .having(func.count() == len(request.graphemes))
+        )
+
+        # Основной запрос
+        query = (
+            select(Hieroglyphs.unicode)
+            .filter(and_(*subqueries))
+            .filter(Hieroglyphs.unicode.in_(total_parts_check))
+            .limit(1)
+        )
+
+        result = await session.execute(query)
+        unicode_hex = result.scalar()
+
+        if not unicode_hex:
+            raise HTTPException(
+                status_code=404,
+                detail="There is no hieroglyph which contains given graphemes"
+            )
+
+        # Преобразование hex-кода в символ Unicode
+        try:
+            hieroglyph = chr(int(unicode_hex, 16))
+            return HieroglyphResponse(hieroglyph=hieroglyph)
+        except ValueError:
+            raise HTTPException(
+                status_code=500,
+                detail="Hieroglyph code conversion error"
+            )
